@@ -1,5 +1,7 @@
 name: Build and publish Zap feed
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '17 */3 * * *'
   workflow_dispatch:

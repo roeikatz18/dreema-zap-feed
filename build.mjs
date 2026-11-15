@@ -50,31 +50,59 @@ for (const p of products) {
     const url = withVar.length <= 340 ? withVar : base;
     if (url.length > 340) { skipped++; continue; }
     const img = v.featured_image?.src || p.images[0]?.src || '';
-    items.push({ url, name, model: clean(v.sku, 60), details: clean(p.body_html, 255), code: v.sku || String(v.id), price, ship: ship[0], days: ship[1], img, warranty: WARRANTY[p.product_type] || '12 חודשים' });
+    items.push({ url, name, model: clean(v.sku, 60), details: clean(p.body_html, 255), code: v.sku || String(v.id), price, ship: ship[0], days: ship[1], img, warranty: WARRANTY[p.product_type] || '12 חודשים', type: p.product_type });
   }
 }
 
-const xml = ['<?xml version="1.0" encoding="UTF-8"?>', '<STORE>', '<PRODUCTS>'];
+const CATS = {
+  'מזרן': ['mattresses', 'מזרנים'], 'טופר': ['toppers', 'טופרים ורפידות למזרן'], 'מיטה': ['beds', 'מיטות ובסיסי מיטה'],
+  'ספות': ['sofas', 'ספות'], 'כורסאות': ['armchairs', 'כורסאות'], 'כיסאות': ['chairs', 'כיסאות אוכל'],
+  'כיסאות בר': ['bar-stools', 'כיסאות בר'], 'כיסאות משרד': ['office-chairs', 'כיסאות משרד'],
+  'שולחן סלון': ['coffee-tables', 'שולחנות סלון'], 'שולחן צד': ['side-tables', 'שולחנות צד'], 'קונסולה': ['consoles', 'קונסולות'],
+  'ספסל': ['benches', 'ספסלים'], 'ספריות': ['bookcases', 'ספריות'], 'שידת לילה': ['nightstands', 'שידות לילה'],
+  'מוצרים נלווים': ['bedding', 'כריות, שמיכות ומגני מזרן'], 'bundle': ['bedding', 'כריות, שמיכות ומגני מזרן'],
+  'אקססוריז לבית': ['home-decor', 'אביזרי עיצוב לבית'],
+};
+const toXml = list => {
+  const x = ['<?xml version="1.0" encoding="UTF-8"?>', '<STORE>', '<PRODUCTS>'];
+  for (const i of list) {
+    x.push('<PRODUCT>',
+      `<PRODUCT_URL>${esc(i.url)}</PRODUCT_URL>`,
+      `<PRODUCT_NAME>${esc(i.name)}</PRODUCT_NAME>`,
+      `<MODEL>${esc(i.model)}</MODEL>`,
+      `<DETAILS>${esc(i.details)}</DETAILS>`,
+      '<CATALOG_NUMBER></CATALOG_NUMBER>',
+      `<PRODUCTCODE>${esc(i.code)}</PRODUCTCODE>`,
+      '<CURRENCY>ILS</CURRENCY>',
+      `<PRICE>${i.price}</PRICE>`,
+      `<SHIPMENT_COST>${i.ship}</SHIPMENT_COST>`,
+      `<DELIVERY_TIME>${i.days}</DELIVERY_TIME>`,
+      '<MANUFACTURER>Dreema</MANUFACTURER>',
+      `<WARRANTY>${esc(i.warranty)}</WARRANTY>`,
+      '<WARRANTYBY>Dreema</WARRANTYBY>',
+      `<IMAGE>${esc(i.img)}</IMAGE>`,
+      '<TAX>1</TAX>',
+      '</PRODUCT>');
+  }
+  x.push('</PRODUCTS>', '</STORE>');
+  return x.join('\n');
+};
+const dir = OUT.replace(/[^/\\]+$/, '') || '.';
+fs.mkdirSync(dir, { recursive: true });
+fs.writeFileSync(OUT, toXml(items), 'utf8'); // everything in one file (kept for reference)
+const groups = {};
+const unknown = new Set();
 for (const i of items) {
-  xml.push('<PRODUCT>',
-    `<PRODUCT_URL>${esc(i.url)}</PRODUCT_URL>`,
-    `<PRODUCT_NAME>${esc(i.name)}</PRODUCT_NAME>`,
-    `<MODEL>${esc(i.model)}</MODEL>`,
-    `<DETAILS>${esc(i.details)}</DETAILS>`,
-    '<CATALOG_NUMBER></CATALOG_NUMBER>',
-    `<PRODUCTCODE>${esc(i.code)}</PRODUCTCODE>`,
-    '<CURRENCY>ILS</CURRENCY>',
-    `<PRICE>${i.price}</PRICE>`,
-    `<SHIPMENT_COST>${i.ship}</SHIPMENT_COST>`,
-    `<DELIVERY_TIME>${i.days}</DELIVERY_TIME>`,
-    '<MANUFACTURER>Dreema</MANUFACTURER>',
-    `<WARRANTY>${esc(i.warranty)}</WARRANTY>`,
-    '<WARRANTYBY>Dreema</WARRANTYBY>',
-    `<IMAGE>${esc(i.img)}</IMAGE>`,
-    '<TAX>1</TAX>',
-    '</PRODUCT>');
+  const c = CATS[i.type];
+  if (!c) { unknown.add(i.type); continue; }
+  (groups[c[0]] ??= { label: c[1], list: [] }).list.push(i);
 }
-xml.push('</PRODUCTS>', '</STORE>');
-fs.mkdirSync(OUT.replace(/[^/\\]+$/, '') || '.', { recursive: true });
-fs.writeFileSync(OUT, xml.join('\n'), 'utf8');
-console.log(`products ${products.length}, items ${items.length}, skipped ${skipped} -> ${OUT}`);
+if (unknown.size) throw new Error('Unmapped product types: ' + [...unknown].join(', '));
+fs.mkdirSync(dir + 'cat', { recursive: true });
+const rows = [];
+for (const [slug, g] of Object.entries(groups)) {
+  fs.writeFileSync(`${dir}cat/${slug}.xml`, toXml(g.list), 'utf8');
+  rows.push(`<li><a href="cat/${slug}.xml">${g.label}</a> (${g.list.length})</li>`);
+}
+fs.writeFileSync(dir + 'index.html', `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>Dreema - zap mirror</title></head><body><h1>Dreema - אתר מראה לזאפ</h1><ul>${rows.join('')}</ul></body></html>`, 'utf8');
+console.log(`products ${products.length}, items ${items.length}, skipped ${skipped}, categories ${Object.keys(groups).length} -> ${dir}`);
