@@ -8,7 +8,8 @@ const OUT = process.argv[2] || 'public/feed.xml';
 
 // coded weight (kg) -> [shipping ILS paid in cash to the carrier, delivery business days]
 const SHIP = {
-  0: [0, 10], 0.1: [0, 5], 1: [0, 10],
+  // weights 0 and 1 = Abstract supplier furniture (free delivery only Gedera-Hadera): excluded until a nationwide price is known
+  0.1: [0, 5],
   10: [170, 21], 30: [200, 21], 70: [300, 21], 100: [400, 21], 150: [250, 21],
   420: [100, 21], 500: [350, 21], 600: [150, 21], 840: [200, 21], 1000: [350, 21], 2500: [400, 21],
 };
