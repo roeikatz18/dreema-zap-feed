@@ -8,7 +8,7 @@ const OUT = process.argv[2] || 'public/feed.xml';
 
 // coded weight (kg) -> [shipping ILS paid in cash to the carrier, delivery business days]
 const SHIP = {
-  0: [0, 5], 0.1: [0, 5], 1: [0, 5],
+  0: [0, 10], 0.1: [0, 5], 1: [0, 10],
   10: [170, 21], 30: [200, 21], 70: [300, 21], 100: [400, 21], 150: [250, 21],
   420: [100, 21], 500: [350, 21], 600: [150, 21], 840: [200, 21], 1000: [350, 21], 2500: [400, 21],
 };
@@ -44,7 +44,20 @@ for (const p of products) {
     const ship = SHIP[v.grams / 1000];
     if (!price || !ship || !v.available) { skipped++; continue; }
     const opts = [v.option1, v.option2, v.option3].filter(o => o && o !== 'Default Title');
-    const name = clean(`${headOf(p.title)} ${opts.map(headOf).join(' ')}`, 120);
+    // Zap asked for the bed/mattress type (single / 1.5 / double) in the product name
+    const sm = opts.join(' ').match(/(\d{2,3})\s*[x×X\/]\s*(\d{3})/);
+    const width = sm ? parseInt(sm[1], 10) : 0;
+    let title = headOf(p.title);
+    if (width && ['מזרן', 'מיטה', 'טופר'].includes(p.product_type)) {
+      const t = width <= 100 ? 0 : width <= 120 ? 1 : 2;
+      const mat = ['יחיד', 'וחצי', 'זוגי'][t], bed = ['יחידה', 'וחצי', 'זוגית'][t];
+      if (/^בסיס מיטה/.test(title)) title = title.replace('בסיס מיטה', `בסיס מיטה ${bed}`);
+      else if (/^מיטה /.test(title)) title = title.replace('מיטה', `מיטה ${bed}`);
+      else if (/^מיטת /.test(title)) title = `${title} ${bed}`;
+      else if (/^מזרן/.test(title)) title = title.replace('מזרן', `מזרן ${mat}`);
+      else if (/^טופר/.test(title)) title = `${title} ל${t === 1 ? 'מיטה וחצי' : 'מזרן ' + mat}`;
+    }
+    const name = clean(`${title} ${opts.map(headOf).join(' ')}`, 120);
     const base = `${SITE}/products/${encodeURIComponent(p.handle)}`;
     const withVar = `${base}?variant=${v.id}`;
     const url = withVar.length <= 340 ? withVar : base;
